@@ -1,12 +1,26 @@
-# Air Quality Dataset
-This dataset contains the responses of a gas multisensor device deployed on the field in an Italian city. Hourly responses averages are recorded along with gas concentrations references from a certified analyzer. This dataset was taken from UCI Machine Learning Repository: https://archive.ics.uci.edu/dataset/360/air+quality
+# Consumo de Gás em Portugal
 
-The dataset contains 9357 instances of hourly averaged responses from an array of 5 metal oxide chemical sensors embedded in an Air Quality Chemical Multisensor Device. The device was located on the field in a significantly polluted area, at road level,within an Italian city. Data were recorded from March 2004 to February 2005 (one year) representing the longest freely available recordings of on field deployed air quality chemical sensor devices responses. Ground Truth hourly averaged concentrations for CO, Non Metanic Hydrocarbons, Benzene, Total Nitrogen Oxides (NOx) and Nitrogen Dioxide (NO2) and were provided by a co-located reference certified analyzer. 
+O consumo corresponde à totalidade do gás natural consumido diariamente em Portugal Continental. Está repartido por dois segmentos de mercado principais:
+Mercado Elétrico, que corresponde ao gás natural consumido pelas centrais de ciclo combinado para produção de eletricidade e Mercado Convencional, que corresponde ao gás natural de consumo doméstico e industrial.
+Por sua vez, o Mercado Convencional está repartido em três categorias: GRMS – Distribuição, que corresponde ao gás entregue nas GRMS para consumo nas Redes de Distribuição, Clientes Alta Pressão, que corresponde ao gás entregue nas GRMS para consumo de clientes ligados diretamente à rede de Alta Pressão, e ainda UAG – Unidades Autónomas de Gaseificação, que corresponde ao gás consumido a partir de unidades que não estão ligadas diretamente ao gasoduto.
+O dia gás é definido como o período compreendido entre as 5h00 e as 5h00 do dia seguinte.
+
+Link para o dataset: [https://dados.gov.pt/pt/datasets/diagrama-consumo-diario-gas-3/](https://dados.gov.pt/pt/datasets/diagrama-consumo-diario-gas-3/)
+
 
 # Exploratory data analysis
 
 ```{r}
-dados=read.csv2("./data/AirQuality.csv")
+dados <- read.csv2("./data/data.csv", skip = 2)
+dados$Data <- as.POSIXct(dados$Data.e.Hora, format="%Y-%m-%d %H:%M:%S")
 names(dados)
 head(dados)
+
+```
+
+```{r}
+plot(dados$Data, dados$Consumo, type = "l", col = "blue",
+     main = "Consumo de Gás em Portugal",
+     xlab = "Data", ylab = "Consumo",
+     lwd = 2)
 ```

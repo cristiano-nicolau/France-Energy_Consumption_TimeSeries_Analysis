@@ -1,29 +1,19 @@
-# Air Quality Prediction
+# Gas Consumption Time Series Analysis
 
 ## Overview
-This dataset contains hourly averaged responses from a chemical multisensor device deployed at street level in a heavily polluted area of an Italian city. The data was collected over the span of one year, from March 2004 to February 2005, making it one of the longest publicly available field recordings from air quality chemical sensors.
+This project focuses on the time series analysis of daily natural gas consumption data in mainland Portugal. The dataset provides historical records, enabling the exploration of consumption patterns, trends, and forecasting opportunities for research and educational purposes.
 
-The device included 5 metal oxide chemical sensors, and its readings were recorded alongside reference ground truth measurements from a certified analyzer.
+The total daily gas consumption is divided into two main market segments:
+- **Electric Market**: Natural gas consumed by combined cycle power plants for electricity generation.
+- **Conventional Market**: Natural gas used for domestic and industrial purposes.
 
-## Dataset Details
+The Conventional Market is further divided into three categories:
+- **GRMS – Distribution**: Gas delivered to GRMS for consumption in Distribution Networks.
+- **High Pressure Clients**: Gas delivered to GRMS for clients directly connected to the High Pressure network.
+- **UAG – Autonomous Gasification Units**: Gas consumed by units not directly connected to the pipeline.
 
-The dataset includes:
-- 9357 instances representing hourly averages.
-- Sensor data from 5 metal oxide chemical sensors.
-    - Target air pollutants (Ground Truth):
-    - Carbon Monoxide (CO)
-    - Non-Methane Hydrocarbons (NMHC)
-    - Benzene (C6H6)
-    - Total Nitrogen Oxides (NOx)
-    - Nitrogen Dioxide (NO2)
+A "gas day" is defined as the period from 5:00 AM to 5:00 AM the following day.
 
-- Meteorological data:
-    - Temperature
-    - Relative Humidity
-    - Atmospheric Pressure
+The dataset supports exploratory data analysis, visualization, and predictive modeling.
 
-- Missing values are represented by -200.
-
-
-This dataset is published by the UCI Machine Learning Repository and is available for research purposes. The dataset can be accessed at the following link:
-[https://archive.ics.uci.edu/ml/datasets/Air+Quality](https://archive.ics.uci.edu/ml/datasets/Air+Quality)
+Dataset link: [https://dados.gov.pt/pt/datasets/diagrama-consumo-diario-gas-3/](https://dados.gov.pt/pt/datasets/diagrama-consumo-diario-gas-3/)
