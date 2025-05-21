@@ -5,7 +5,17 @@ Mercado Elétrico, que corresponde ao gás natural consumido pelas centrais de c
 Por sua vez, o Mercado Convencional está repartido em três categorias: GRMS – Distribuição, que corresponde ao gás entregue nas GRMS para consumo nas Redes de Distribuição, Clientes Alta Pressão, que corresponde ao gás entregue nas GRMS para consumo de clientes ligados diretamente à rede de Alta Pressão, e ainda UAG – Unidades Autónomas de Gaseificação, que corresponde ao gás consumido a partir de unidades que não estão ligadas diretamente ao gasoduto.
 O dia gás é definido como o período compreendido entre as 5h00 e as 5h00 do dia seguinte.
 
+No´s vamos nos focar apenas no Consumo geral de gas a nivel nacional.
+
 Link para o dataset: [https://dados.gov.pt/pt/datasets/diagrama-consumo-diario-gas-3/](https://dados.gov.pt/pt/datasets/diagrama-consumo-diario-gas-3/)
+
+The main objectives of this project are:
+
+- Exploratory analysis of the time series behavior
+- Testing for stationarity
+- Identifying and estimating appropriate models
+- Diagnosing model residuals
+- Producing forecasts and interpreting results
 
 
 # Exploratory data analysis
@@ -17,6 +27,11 @@ names(dados)
 head(dados)
 
 ```
+The dataset should be checked for any missing values:
+
+```{r}
+any(is.na(dados))
+```
 
 ```{r}
 plot(dados$Data, dados$Consumo, type = "l", col = "blue",
@@ -24,3 +39,22 @@ plot(dados$Data, dados$Consumo, type = "l", col = "blue",
      xlab = "Data", ylab = "Consumo",
      lwd = 2)
 ```
+```{r}
+dados$Consumo <- as.numeric(gsub(",", ".", dados$Consumo))
+boxplot(dados$Consumo, main = "Boxplot do Consumo de Gás", col = "lightblue")
+```
+Como podemos ver no boxplot nao temos outliers.
+
+```{r}
+
+
+```
+
+
+
+
+
+
+
+
+
