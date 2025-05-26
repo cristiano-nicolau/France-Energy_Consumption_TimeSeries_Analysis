@@ -1,75 +1,140 @@
-# akakfakvk
-
+# Consumo de energia França
 
 # Exploratory data analysis
 
 ```{r}
-dados <- read.csv("data/1-rainfalltemp.csv")
+
+
+library(dplyr)
+library(forecast)
+library(urca)
+library(lmtest)
+library(tseries)
+
+
+
+dados <- read.csv("data/data2.csv")
 names(dados)
 head(dados)
 ```
-The dataset should be checked for any missing values:
+
 
 ```{r}
-any(is.na(dados))
-```
-
-```{r}
-plot(dados$Data, dados$Consumo, type = "l", col = "blue",
-     main = "Consumo de Gás em Portugal",
-     xlab = "Data", ylab = "Consumo",
-     lwd = 2)
-```
-```{r}
-dados$Consumo <- as.numeric(gsub(",", ".", dados$Consumo))
-boxplot(dados$Consumo, main = "Boxplot do Consumo de Gás", col = "lightblue")
+dados$OBS_VALUE <- as.numeric(gsub(",", ".", dados$OBS_VALUE))
+boxplot(dados$OBS_VALUE, main = "Boxplot do Consumo de energia", col = "lightblue")
 ```
 Como podemos ver no boxplot nao temos outliers.
 
-```{r}
-library(dplyr)
-library(lubridate)
-
-dados_filtrados <- dados %>%
-  filter(month(Data) >= 6 & month(Data) <= 7)
-
-
-plot(dados_filtrados$Data, dados_filtrados$Consumo, type = "l", col = "blue",
-     main = "Consumo de Gás em Portugal",
-     xlab = "Data", ylab = "Consumo",
-     lwd = 2)
-
-dados_filtrados
-```
-
+Vamos agora transformar os nossos dados numa serie temporal, e fazer analise temporal
 
 ```{r}
-dados_filtrados$Consumo <- as.numeric(as.character(dados_filtrados$Consumo))
-
-
-ts_aa <- ts(dados_filtrados$Consumo, start = c(2021, 152), frequency = 24)
-plot(ts_aa)
 library(forecast)
-arima <- auto.arima(ts_aa, seasonal = TRUE)
 
-summary(arima)
+ts_data <- ts(dados$OBS_VALUE, start = c(2008, 1), frequency = 12)
 
-checkresiduals(arima)
+plot(ts_data,
+     ylab = "Consumo de energia (GWh)",
+     xlab = "Tempo (por mês)",
+     main = "Consumo de energia por mês na França")
+
+decomposed <- decompose(ts_data)
+autoplot(decomposed)
 ```
 
 ```{r}
-a <- arima$fitted
 
-plot(a)
-plot(ts_aa)
+summary(ts_data)
+length(ts_data)
+sum(is.na(ts_data))
+
+```
+
+```{r}
+
+# 2.5 Split data into training and test sets
+# 80% for training, 20% for testing
+n <- length(ts_data)
+train_size <- floor(0.8 * n)
+ts_train <- window(ts_data, end = time(ts_data)[train_size])
+ts_test <- window(ts_data, start = time(ts_data)[train_size + 1])
+
+cat("Training set length:", length(ts_train), "\n")
+cat("Test set length:", length(ts_test), "\n")
+
+```
+
+
+
+
+```{r}
+ #3.1 Augmented Dickey-Fuller test for stationarity
+adf_original <- adf.test(ts_train)
+print(adf_original)
+
+# 3.2 KPSS test for stationarity
+kpss_original <- kpss.test(ts_train)
+print(kpss_original)
+
+# 3.3 Box-Cox transformation analysis
+lambda <- BoxCox.lambda(ts_train)
+cat("Optimal lambda for Box-Cox transformation:", lambda, "\n")
+
+# Apply Box-Cox transformation if needed
+if (abs(lambda) > 0.1) {
+  ts_boxcox <- BoxCox(ts_train, lambda)
+  plot(ts_boxcox, main = paste("Box-Cox Transformed Series (lambda =", round(lambda, 3), ")"))
+} else {
+  ts_boxcox <- log(ts_train)
+  plot(ts_boxcox, main = "Log Transformed Series")
+}
+
+# 3.4 Check stationarity after transformation
+adf_transformed <- adf.test(ts_boxcox)
+print(adf_transformed)
+
+```
+
+```{r}
+ts_diff1 <- diff(ts_boxcox, differences = 1)
+plot(ts_diff1, main = "First Differenced Series")
+
+# Test stationarity after first differencing
+adf_diff1 <- adf.test(ts_diff1)
+print(adf_diff1)
+
 ```
 ```{r}
-model <- stlm(ts_aa, s.window = "periodic", method = "arima")
-checkresiduals(model)
+if (frequency(ts_train) > 1) {
+  ts_seasonal_diff <- diff(ts_boxcox, lag = frequency(ts_train))
+  plot(ts_seasonal_diff, main = "Seasonal Differenced Series")
+  
+  # Combined differencing
+  ts_combined_diff <- diff(diff(ts_boxcox, lag = frequency(ts_train)), differences = 1)
+  plot(ts_combined_diff, main = "Seasonal + Regular Differenced Series")
+  
+  # Test stationarity
+  adf_combined <- adf.test(ts_combined_diff)
+  print(adf_combined)
+}
 ```
 
+```{r}
+final_series <- ts_diff1  # Adjust based on your stationarity tests
 
+acf(final_series, lag.max = 40, main = "ACF of Stationary Series")
+pacf(final_series, lag.max = 40, main = "PACF of Stationary Series")
 
+# For original series comparison
+acf(ts_train, lag.max = 40, main = "ACF of Original Series")
+pacf(ts_train, lag.max = 40, main = "PACF of Original Series")
+```
+```{r}
 
+auto_arima <- auto.arima(ts_train, seasonal = TRUE, stepwise = FALSE, approximation = FALSE)
+print(auto_arima)
 
+checkresiduals(auto_arima)
+```
+```{r}
 
+```
