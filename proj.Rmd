@@ -137,4 +137,21 @@ checkresiduals(auto_arima)
 ```
 ```{r}
 
+# 6.1 Fit the ARIMA model
+fit_arima <- Arima(ts_train, order = c(1, 1, 1), seasonal = c(1, 1, 1))
+summary(fit_arima)
+```
+
+```{r}
+# 6.2 Forecasting
+forecast_horizon <- length(ts_test)
+forecast_arima <- forecast(fit_arima, h = forecast_horizon)
+plot(forecast_arima, main = "ARIMA Forecast", ylab = "Consumo de energia (GWh)", xlab = "Tempo (por mês)")
+```
+
+```{r}
+# 6.3 Accuracy metrics
+accuracy_metrics <- accuracy(forecast_arima, ts_test)
+print(accuracy_metrics)
+
 ```
