@@ -107,7 +107,8 @@ This series appears stationary. Let's re-run the tests to confirm.
 adf.test(ts_stationary)
 kpss.test(ts_stationary)
 ```
-The ADF test now has a very low p-value, allowing us to reject the null hypothesis and conclude that the series is now stationary. Our model will therefore require one seasonal difference (D=1) and one regular difference (d=1).
+
+After applying seasonal differencing (lag = 12) and a first regular difference, we re-evaluated the series for stationarity. The Augmented Dickey-Fuller (ADF) test strongly rejected the null hypothesis of non-stationarity (ADF = –8.3772, p < 0.01), and the KPSS test failed to reject the null of stationarity (KPSS = 0.033, p > 0.1). These results confirm that the differenced series is stationary. Consequently, we proceed with SARIMA modeling using (d = 1, D = 1, s = 12).
 
 ### Model Identification using ACF and PACF
 We now analyze the ACF and PACF plots of the stationary series to identify the orders of the AR and MA components (p, q, P, Q). 
@@ -123,7 +124,7 @@ Based on this, a good candidate model is SARIMA(p,1,q)(0,1,1)[12]. We'll let aut
 
 ### Model Estimation and Diagnostics
 We use the auto.arima() function to automatically select the best mode
-
+#### Auto Arima
 
 ```{r}
 # Fit model using auto.arima on the training data
@@ -170,7 +171,36 @@ accuracy(sarima_forecast, ts_test)
 ```
 The accuracy metrics, particularly the Mean Absolute Percentage Error (MAPE) on the test set (4.37%), indicate that the model's forecasts are, on average, within approximately 4,5% of the actual values. This demonstrates a high level of accuracy. The Root Mean Squared Error (RMSE) gives a measure of the typical error magnitude in GWh.
 
-## 6. Alternative Model: Exponential Smoothing (ETS)
+## 6. Alternative SARIMA MODEL: SARIMA(1,1,1)(0,1,1)[12]
+```{r}
+manual_fit <- Arima(ts_train, order = c(1,1,1), 
+                    seasonal = list(order = c(0,1,1), period = 12),
+                    include.drift = FALSE)  # usually better to exclude drift when d=1
+summary(manual_fit)
+```
+```{r}
+checkresiduals(manual_fit)
+
+```
+
+
+```{r}
+# Forecast with manual SARIMA
+sarima_manual_forecast <- forecast(manual_fit, h = length(ts_test))
+
+# Plot forecasts
+autoplot(sarima_manual_forecast) +
+  autolayer(ts_test, series = "Actual") +
+  labs(title = "SARIMA(1,1,1)(0,1,1)[12] Forecast vs. Actual",
+       x = "Year", y = "Consumption (GWh)")
+
+# Forecast accuracy
+accuracy(sarima_manual_forecast, ts_test)
+
+```
+
+
+## 7. Alternative Model: Exponential Smoothing (ETS)
 We will now fit an ETS model to the training data. The ets() function in the forecast package automatically selects the best model by testing different combinations of error, trend, and seasonality components (additive, multiplicative, damped, etc.) and choosing the one with the lowest AICc.
 
 
@@ -198,6 +228,13 @@ checkresiduals(ets_fit)
 ```{r}
 # Generate forecasts using the fitted ETS model
 ets_forecast <- forecast(ets_fit, h = length(ts_test))
+
+# Plot forecasts
+autoplot(ets_forecast) +
+  autolayer(ts_test, series = "Actual") +
+  labs(title = "ETS Model Forecast vs. Actual",
+       x = "Year", y = "Consumption (GWh)")
+
 
 # Calculate accuracy metrics
 accuracy(ets_forecast, ts_test)
