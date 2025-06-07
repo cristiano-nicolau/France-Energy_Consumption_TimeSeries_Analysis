@@ -199,9 +199,22 @@ autoplot(sarima_manual_forecast) +
 accuracy(sarima_manual_forecast, ts_test)
 
 ```
+## 7. Alternative Model: STL
+
+```{r}
+stlm_fit <- stlm(ts_train, s.window = "periodic", method = "arima")
+summary(stlm_fit)
+checkresiduals(stlm_fit)
+
+```
+
+```{r}
+stlm_forecast <- forecast(stlm_fit, h = length(ts_test))
+accuracy(stlm_forecast, ts_test)
+```
 
 
-## 7. Alternative Model: Exponential Smoothing (ETS)
+## 8. Alternative Model: Exponential Smoothing (ETS)
 We will now fit an ETS model to the training data. The ets() function in the forecast package automatically selects the best model by testing different combinations of error, trend, and seasonality components (additive, multiplicative, damped, etc.) and choosing the one with the lowest AICc.
 
 
@@ -241,6 +254,28 @@ autoplot(ets_forecast) +
 accuracy(ets_forecast, ts_test)
 ```
 
+## 9. Compare Models
 
+```{r}
+library(knitr)
+results <- rbind(
+  SARIMA_auto = accuracy(sarima_forecast, ts_test)[2, c("RMSE", "MAE", "MAPE", "Theil's U")],
+  SARIMA_manual = accuracy(sarima_manual_forecast, ts_test)[2, c("RMSE", "MAE", "MAPE", "Theil's U")],
+  ETS = accuracy(ets_forecast, ts_test)[2, c("RMSE", "MAE", "MAPE", "Theil's U")],
+  STLM_ARIMA = accuracy(stlm_forecast, ts_test)[2, c("RMSE", "MAE", "MAPE", "Theil's U")]
+)
+kable(round(results, 2), caption = "Forecast Accuracy Comparison on Test Set")
 
+```
+```{r}
+autoplot(ts_test, series = "Actual") +
+  autolayer(sarima_forecast$mean, series = "SARIMA Auto", PI = FALSE) +
+  autolayer(sarima_manual_forecast$mean, series = "SARIMA Manual", PI = FALSE) +
+  autolayer(ets_forecast$mean, series = "ETS", PI = FALSE) +
+  autolayer(stlm_forecast$mean, series = "STLM+ARIMA", PI = FALSE) +
+  labs(title = "Model Forecasts vs Actual Data", y = "GWh", x = "Time") +
+  guides(colour = guide_legend(title = "Forecasts")) +
+  theme_minimal()
+
+```
 
