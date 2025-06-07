@@ -22,6 +22,7 @@ library(forecast)
 library(urca)
 library(lmtest)
 library(tseries)
+library(ggplot2)
 
 # Load the data
 dados <- read.csv("data/data2.csv")
