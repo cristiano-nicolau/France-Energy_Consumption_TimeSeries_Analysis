@@ -18,6 +18,7 @@ The dataset will be split into a training set for model building and a test set 
 First, we load the necessary R libraries and the dataset. The data represents the monthly electricity available to the internal market in France, measured in Gigawatt-hours (GWh).
 
 ```{r}
+# install.packages(c("forecast", "urca", "lmtest", "tseries", "ggplot2"))
 library(forecast)
 library(urca)
 library(lmtest)

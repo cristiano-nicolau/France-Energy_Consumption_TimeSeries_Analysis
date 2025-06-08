@@ -1,0 +1,436 @@
+# Time Series Analysis of French Electricity Consumption: 2024-2025 Project
+
+## 1. Introduction
+This report details the analysis of monthly electricity consumption in France from January 2008 to March 2025. The primary objective is to develop a robust time series model capable of accurately forecasting future consumption. 
+
+The methodology follows the Box-Jenkins approach for building a Seasonal Autoregressive Integrated Moving Average (SARIMA) model.  The process involves several key stages:
+
+1. Exploratory Data Analysis: Initial visualization and decomposition of the data to understand its underlying structure, including trend and seasonality.
+2. Data Transformation: Applying necessary transformations to stabilize the variance and stationarize the series.
+3. Model Identification, Estimation, and Diagnostics: Proposing candidate SARIMA models based on the Autocorrelation Function (ACF) and Partial Autocorrelation Function (PACF), estimating model parameters, and performing rigorous diagnostic checks on the model's residuals. 
+4. Forecasting and Accuracy Evaluation: Generating forecasts on a hold-out test set and evaluating their accuracy using standard metrics.
+5.Results, Discussion and Conclusion: Compare the different results of the differnt models.
+
+The dataset will be split into a training set for model building and a test set for forecast validation, as recommended. 
+
+## 2. Data and Exploratory Analysis
+
+### Data Loading and Preparation
+First, we load the necessary R libraries and the dataset. The data represents the monthly electricity available to the internal market in France, measured in Gigawatt-hours (GWh).
+
+```{r}
+install.packages(c("forecast", "urca", "lmtest", "tseries", "ggplot2"))
+library(forecast)
+library(urca)
+library(lmtest)
+library(tseries)
+library(ggplot2)
+
+# Load the data
+dados <- read.csv("data/data2.csv")
+
+# Create a time series object
+# The data is monthly (frequency=12) and starts in January 2008.
+ts_data <- ts(dados$OBS_VALUE, start = c(2008, 1), frequency = 12)
+names(dados)
+head(dados)
+```
+
+### Exploratory Analysis
+To study the existence of outliers we can use a boxplot.
+```{r}
+dados$OBS_VALUE <- as.numeric(gsub(",", ".", dados$OBS_VALUE))
+boxplot(dados$OBS_VALUE, main = "Boxplot Of France Energy Consumption", col = "lightblue")
+```
+As we can observe, the box plot shows us that we do not have outliers.
+
+We begin by plotting the time series to visually inspect its components.
+```{r}
+autoplot(ts_data,
+         ylab = "Consumption (GWh)",
+         xlab = "Year",
+         main = "Monthly Electricity Consumption in France (2008-2025)")
+```
+The plot reveals two key characteristics:
+
+1. Strong Seasonality: There is a clear and repeating annual pattern, with consumption peaking in the winter months and reaching a low in the summer.
+2. Trend: There appears to be a slight downward trend in consumption over the years, particularly after 2010.
+3. Varience: It seems that the variance also varies a little bit, specially comparing the earlier years with the older ones.
+To better visualize these components, we decompose the series.
+
+### Data Splitting
+To properly evaluate our model's forecasting ability, we split the data into a training set (80% of the data) for model fitting and a test set (the remaining 20%) for validation.
+```{r}
+# Split data: 80% for training, 20% for testing
+n <- length(ts_data)
+train_size <- floor(0.8 * n)
+ts_train <- window(ts_data, end = time(ts_data)[train_size])
+ts_test <- window(ts_data, start = time(ts_data)[train_size + 1])
+
+cat("Training set length:", length(ts_train), "observations\n")
+cat("Test set length:", length(ts_test), "observations\n")
+```
+We will only apply the transformations to the training set (and repeat in the test when necessary) to avoid data leakage.
+
+We opted for classical decomposition rather than STL, since the trend and seasonality are clear and stable.
+```{r}
+# Decompose the series to show trend, seasonality, and remainder
+decomposed <- decompose(ts_data)
+autoplot(decomposed)
+```
+The decomposition confirms the strong seasonal pattern and a visible, though somewhat noisy, trend.
+
+### Stationarity Assessment
+To stabilize the variance, we should apply a log transformation.
+Visually, the series shows more intense seasonal variation at higher values (2008-2012), and then less over time. This indicates that the variance depends on the level of the series, which justifies the use of log().
+
+```{r}
+log_ts <- log(ts_train)
+plot(log_ts)
+```
+
+We already now that the trend is not constant just by observing the time series plot. However, we will do some stacionarity tests with ADF e KPSS to check if we do need to differenciate the time series. We can confirm this with statistical tests.
+
+- Augmented Dickey-Fuller (ADF) Test: Null hypothesis $$H_0$$ is that the series is non-stationary.
+- KPSS Test: Null hypothesis $$H_0$$ is that the series is stationary.
+
+```{r}
+# ADF test on the training data
+adf.test(log_ts)
+
+# KPSS test on the training data
+kpss.test(log_ts)
+```
+The ADF test's low p-value (< 0.05) means we can reject  $$H_0$$ , suggesting stationarity. 
+The KPSS test's low p-value (< 0.05) leads us to reject  $$H_0$$ , indicating non-stationarity.
+
+We have an ambiguous situation, assuming that the series is not yet fully stationary, it is safer to differentiate the series.
+
+### Achieving Stationarity through Differencing
+we use the ndiffs() and nsdiffs() functions from the forecast package to determine how many differentiations are needed to make the logarithmically transformed series (log_ts) stationary.
+```{r}
+# library(forecast)
+ndiffs(log_ts)     # trend
+nsdiffs(log_ts)    # sazonality
+```
+
+To make the series stationary, we apply differencing. Given the strong 12-month seasonality, we start with seasonal differencing (lag=12).
+```{r}
+# Apply seasonal differencing (D=1)
+ts_seasonal_diff <- diff(log_ts, lag = 12)
+autoplot(ts_seasonal_diff, main = "Seasonally Differenced Series")
+```
+The seasonal pattern is gone, but a trend might still be present. We now apply a regular first difference to remove any remaining trend.
+```{r}
+# Apply regular differencing to the seasonally differenced series (d=1)
+ts_stationary <- diff(ts_seasonal_diff, differences = 1)
+autoplot(ts_stationary, main = "Seasonally and Regularly Differenced Series")
+```
+This series appears stationary. Let's re-run the tests to confirm.
+```{r}
+adf.test(ts_stationary)
+kpss.test(ts_stationary)
+```
+After applying seasonal differencing (lag = 12) and a first regular difference, we re-evaluated the series for stationarity. The Augmented Dickey-Fuller (ADF) test strongly rejected the null hypothesis of non-stationarity (p < 0.01), and the KPSS test failed to reject the null of stationarity (p > 0.1). These results confirm that the differenced series is stationary.
+
+### Study of ACF/PACF functions
+The ACF and PACF must be analysed in the stationary series that will be modelled - that is, after applying the necessary transformations and differentiations.
+They are basic tools for analysing time series and helping to choose models (such as ARIMA).
+
+1. ACF - Autocorrelation Function
+Shows the correlation between the series and its lags and, useful to choose the p value (AR order)
+2. PACF - Partial Autocorrelation Function
+Shows the correlation of the series with its lags, but controlling for intermediate correlations, useful to choose the q value (MA order).
+```{r}
+# ACF/PACF on log series
+# acf(log_ts, main="CF of log-transformed series")
+# pacf(log_ts, main="PACF of log-transformed series")
+
+# ACF/PACF on diffenciated series
+# acf(ts_stationary, main="ACF of the log-transformed series and differentiated 2 times")
+# pacf(ts_stationary, main="PACF of the log-transformed and 2-fold differentiated series")
+
+tsdisplay(ts_stationary, main="ACF/PACF of Stationary Series")
+```
+- Seasonal Order (P, Q): At the seasonal lag 12, the ACF has a significant negative spike, and the PACF cuts off afterward. This suggests a seasonal MA(1) model, so we set Q=1 and P=0.
+- Non-Seasonal Order (p, q): In the non-seasonal lags, the ACF has a significant spike at lag 1 and the PACF has a significant spike at lag 1. This could suggest either an AR(1) or MA(1) model.
+Based on this, a good candidate model is SARIMA(p,1,q)(0,1,1)[12]. We'll let auto.arima() find the optimal p and q values.
+
+Both graphs are a little difficult to interpret since they are not so linear on the values presented, they do not cut off and the do not decay exponencially. For that reason, we will apply an auto.arima() that tests many combinations of values (p,d,q)(P,D,Q)[s] e select the best model with lower AICc ou BIC values. Since it performs all the transformations needed automatically (log and differences, we will apply the auto.arima() function to the original data (ts_data).
+
+## 3. Model Proposal and Diagnostics
+### Model Identification and Estimation
+We will create different models in order to compare methodologies for scientific purposes. Since the time series has many characteristics, it is important to use different models. The purpose of this project is to compare different approaches and select the best-fitting model without overfitting. To achieve this, we will compare the adjustment of point 3 to the accuracy values of point 4 to find the optimal balance between the two.
+
+#### 3.1. Auto Arima
+Since we are going to carry out forecasting later, we have divided our data into training and test sets. The models will only be fitted and modelled using the training set, and we will then be able to test and evaluate the forecasts.
+```{r}
+# Fit model using auto.arima on the training data
+auto_fit <- auto.arima(ts_train, stepwise = FALSE, approximation = FALSE)
+summary(auto_fit)
+```
+
+auto.arima() selected a SARIMA(2,0,0)(0,1,2)[12] model. The selected model was partly in line with our expectations, as established through the initial exploratory analysis. Given the behaviour of the observed data, the presence of a seasonal differentiation with periodicity 12 and a trend differentiation was already expected. However, the order parameters of the model, especially the p and q values, were unknown, introducing some unexpected elements to the modelling process. This highlights the importance of automated methods, such as auto.arima(), in capturing patterns that are not always evident in preliminary visual or statistical analyses.
+
+Next, we perform diagnostic checks on the model's residuals to ensure they behave like white noise (i.e., are random and uncorrelated).
+```{r}
+# Perform residual diagnostics
+checkresiduals(auto_fit)
+```
+
+The diagnostic plots show:
+
+- The residuals plot shows no obvious patterns, appearing random around a mean of zero.
+- The ACF plot of residuals have only one significant spikes which means in general there is no correlation between the residuals.
+- The Ljung-Box test has a large p-value (0.35), meaning we cannot reject the null hypothesis that the residuals are independently distributed.
+The model successfully passes the diagnostic checks, since the residuals behave like white noise, without patterns and non-autocorrelated.
+
+#### 4.1. Future Observations Forecast for SARIMA(2,0,0)(0,1,2)[12]
+We now use our final model, to forecast the next 41 observations.
+```{r}
+# Generate forecasts
+forecast_horizon <- length(ts_test)
+sarima_forecast <- forecast(auto_fit, h = forecast_horizon)
+
+# Plot the forecast against the actual values
+autoplot(sarima_forecast) +
+  autolayer(ts_test, series = "Actual Data") +
+  labs(title = "SARIMA Forecast vs. Actual Data",
+       x = "Year", y = "Consumption (GWh)")
+```
+##### Forecast Accuracy
+Finally, we compare the forecasts to the held-out test data to evaluate the model's accuracy.
+```{r}
+# Calculate accuracy metrics by comparing forecast to test set
+accuracy(sarima_forecast, ts_test)
+```
+The accuracy metrics, particularly the Mean Absolute Percentage Error (MAPE) on the test set (4.37%), indicate that the model's forecasts are, on average, within approximately 4,5% of the actual values. This demonstrates a high level of accuracy. The Root Mean Squared Error (RMSE) gives a measure of the typical error magnitude in GWh.
+
+#### 3.2. Alternative SARIMA MODEL: SARIMA(1,1,1)(0,1,1)[12]
+This model need to be applied on the transformated data, ts_stacionary, the result of the transformmations and differences.
+```{r}
+manual_fit <- Arima(ts_train, order = c(1,1,1), 
+                    seasonal = list(order = c(0,1,1), period = 12),
+                    include.drift = FALSE)  # usually better to exclude drift when d=1
+summary(manual_fit)
+```
+##### Model Parameters, Information Criteria and Training errors measures
+- AR (ar1 = 0.3651): significant (standard error much smaller than the coefficient).
+- MA (ma1 = -0.9689): practically -1, indicating a strong moving average component.
+- Seasonal MA (sma1 = -1.0000): extreme value, suggesting strong seasonal dependence. The standard error is reasonable (0.1472), so it's probably significant too.
+
+The coefficientes make sense and seem well estimated.
+
+By comparing the values of AIC, AICc and BIC with values of the first SARIMA model (SARIMA(2,0,0)(0,1,2)[12]), we can observe that these values are lower, indicating that this models is better adjusted to the data.
+
+Training errors
+ME: -254.29 - tendency to slightly underestimate
+RMSE: 1759.58 - the smaller the better
+MAPE: 3.07% - Values below 10% are generally good, excellent percentage accuracy
+ACF1: -0.028 - no autocorrelation, close to 0, which is desirable.
+
+To increase confidence in the model, we will check the residuals:
+```{r}
+checkresiduals(manual_fit)
+```
+The diagnostic plots show:
+
+- The residuals plot shows no obvious patterns, appearing random around a mean of zero.
+- The ACF plot of residuals have one or two significant spikes which means in general there is no correlation between the residuals.
+- The Ljung-Box test has a large p-value (0.13), meaning we cannot reject the null hypothesis that the residuals are independently distributed.
+The model successfully passes the diagnostic checks, since the residuals behave like white noise, without patterns and non-autocorrelated, exactly like the other SARIMA model tested.
+
+#### 4.2. Future Observations Forecast for SARIMA(1,1,1)(0,1,1)[12]
+The forecast generated by the SARIMA(1,1,1)(0,1,1)[12] model for future data was evaluated against the actual values of the test set. The main results are presented below:
+```{r}
+# Forecast with manual SARIMA
+sarima_manual_forecast <- forecast(manual_fit, h = length(ts_test))
+
+# Plot forecasts
+autoplot(sarima_manual_forecast) +
+  autolayer(ts_test, series = "Actual") +
+  labs(title = "SARIMA(1,1,1)(0,1,1)[12] Forecast vs. Actual",
+       x = "Year", y = "Consumption (GWh)")
+
+# Forecast accuracy
+accuracy(sarima_manual_forecast, ts_test)
+
+```
+The accuracy metrics, particularly the Mean Absolute Percentage Error (MAPE) on the test set (4.67%), is still a very good value. This demonstrates a high level of accuracy. Theil's U = 0.558: a value below 1 indicates that the model outperforms a naive prediction, validating its predictive utility.
+
+When we evaluated the test set, we observed a natural increase in absolute and percentage errors, although these remained at acceptable levels (MAPE of 4.67%). However, there was also a significant increase in the autocorrelation of the residuals (ACF1 = 0.657), which suggests that the model could be improved by testing other SARIMA orders, for example, as part of the structure of the future data has not been captured.
+In terms of possible overfitting, it's not a severe overfitting, but there are signs of underfitting to the new behaviour of the series, possible limitation in the ability to generalise.
+
+#### 3.3 Alternative Model: STL
+We will now model with STL (Seasonal-Trend Decomposition using Loess) that is a method of decomposing time series that divides them into three main components: trend, seasonality, and residuals.
+It helps prepare for modelling the residuals. Once trend and seasonality have been removed (already done - ts_stationary), the residuals can be modelled more accurately using models such as ETS. STL can be adjusted to be less sensitive to extreme values and more robust to outliers. This model allows unstructured fluctuations to be modelled separately with an ARIMA model. This strategy becomes useful when there is complexity or non-linear variation in the seasonal components.
+
+```{r}
+stlm_fit <- stlm(ts_train, s.window = "periodic", method = "arima")
+stlm_fit$model
+summary(stlm_fit)
+```
+The ARIMA model adjusted after the STL decomposition was ARIMA(2,1,1).
+
+```{r}
+checkresiduals(stlm_fit)
+```
+The diagnostic plots show:
+
+- The residuals plot shows no obvious patterns, appearing random around a mean of zero.
+- The ACF plot of residuals have one or two significant spikes which means in general there is no correlation between the residuals.
+- The Ljung-Box test has a large p-value (0.11), meaning we cannot reject the null hypothesis that the residuals are independently distributed.
+The model successfully passes the diagnostic checks, since the residuals behave like white noise, without patterns and non-autocorrelated.
+
+The STL + ARIMA model was effective in capturing the seasonal and trend patterns of the series. Analysis of the residuals shows no significant autocorrelation, suggesting that the model is adequate and has left no unmodelled systematic patterns.
+
+#### 4.3. Future Observations Forecast for STL model
+```{r}
+# Forecast with STL + ARIMA
+stlm_forecast <- forecast(stlm_fit, h = length(ts_test))
+
+# Plot forecasts
+autoplot(stlm_forecast) +
+  autolayer(ts_test, series = "Actual") +
+  labs(title = "STL + ARIMA(2,1,1) Forecast vs. Actual",
+       x = "Year", y = "Consumption (GWh)")
+
+# Forcast accuracy
+accuracy(stlm_forecast, ts_test)
+```
+Observing the forecasts plot we can observe that the forecasts capture the essence.
+This model has good training performance where the training residuals are practically white noise (ACF1 ≈ 0) and MASE < 1 and MAPE ≈ 3% indicate good in-sample performance.
+However, we verify a worse performance in the testwhere all errors increased significantly in the test and MASE > 1.
+ACF1 = 0.69 in the test suggests strong autocorrelation in the errors, which indicates underfitting to the most recent data - perhaps new patterns were not captured by the model which indicates of out-of-sample underfitting.
+The model seems not to have been able to capture recent changes or patterns specific to the test period that can be caused by recent structural changes or ARIMA model in the residuals with inappropriate order.
+
+#### 3.4. Alternative Model: Exponential Smoothing (ETS)
+We will now fit an ETS model to the training data. The ets() function in the forecast package automatically selects the best model by testing different combinations of error, trend, and seasonality components (additive, multiplicative, damped, etc.) and choosing the one with the lowest AICc.
+This model is useful for time series with systematic components, such as trends and/or seasonality, but with low noise. However, this model does not focus on stationarity, where differentiations are undesirable.
+```{r}
+# Fit an ETS model to the training data
+ets_fit <- ets(ts_train)
+summary(ets_fit)
+```
+The function selected an ETS(M,Ad,M) model. This notation stands for:
+
+- Error: Multiplicative (M)
+- Trend: Damped Additive (Ad)
+- Seasonality: Multiplicative (M)
+This choice is sensible, as it acknowledges the multiplicative nature of the seasonality seen in the initial plots, while incorporating a trend component that dampens over time.
+
+##### Smoothing parameters
+Parameter Value Interpretation
+alpha: 0.2592 - moderate value, indicates that the model gives weight to both recent and past observations for the level.
+gamma: 1e-04 - practically zero, seasonality practically fixed over the period, not very adaptive.
+
+The vector s represents the seasonal components for the 12 periods of the seasonal cycle (months).
+The seasonality values show variations over the months, with some months showing higher values (winter months).
+
+The sigma value is 0.0445, indicates the residual variability of the model and a relatively low value suggests controlled residuals.
+The criteria information values are much larger than the previous ones, indicating that this is not the best adjusted model for this time series.
+
+The residual autocorrelation (ACF1 ≈ 0.16) suggests that there is some remaining dependence in the residuals, but it is slight.
+The model tends to slightly underestimate the values, as indicated by the negative mean errors (ME and MPE).
+The reason this model is not very well-adjusted can be attributed to the fact that our data is non-stationary and requires differencing transformations to address this issue. Since this model does not lead with, we may end up with a poorly adjusted model for the data.
+
+Next, we perform diagnostic checks on the ETS model's residuals.
+```{r}
+# Perform residual diagnostics for the ETS model
+checkresiduals(ets_fit)
+```
+The diagnostic plots show:
+
+- The residuals plot shows no obvious patterns, appearing random around a mean of zero.
+- The ACF plot of residuals have some significant spikes which means in general there is correlation between the residuals, even a little.
+- The Ljung-Box test has a large p-value (0), meaning we can reject the null hypothesis that the residuals are independently distributed, meaning that they are not white noise.
+
+The model does not passes successfully  the diagnostic checks since the residuals do not behave like white noise.
+
+#### 4.4. Future Observations Forecast for ETS model
+```{r}
+# Generate forecasts using the fitted ETS model
+ets_forecast <- forecast(ets_fit, h = length(ts_test))
+
+# Plot forecasts
+autoplot(ets_forecast) +
+  autolayer(ts_test, series = "Actual") +
+  labs(title = "ETS Model Forecast vs. Actual",
+       x = "Year", y = "Consumption (GWh)")
+
+
+# Calculate accuracy metrics
+accuracy(ets_forecast, ts_test)
+```
+In the training set, the model fits well, with relatively low error rates (MAPE ≈ 3.2%) and better performance than the naive model (MASE < 1). However, in the test set, errors increase significantly (MAPE >6%, MASE >1), indicating poorer out-of-sample performance. Additionally, the high residual autocorrelation in the test set (ACF1 ≈ 0.65) suggests that the model did not fully capture the series' patterns, possibly due to underfitting or changes in the data's dynamics.
+
+### 5. Compare Models Results
+#### Model Information Criteria Comparison
+In addition to error metrics, information criteria such as AIC (Akaike Information Criterion), AICc (corrected AIC) and BIC (Bayesian Information Criterion) are fundamental to assessing model fit, considering adherence to the data and model complexity.
+
+These criteria penalise overly complex models and help avoid overfitting. They are particularly useful for comparing models fitted to the same set of data.
+```{r}
+# install.packages("MuMIn")
+library(MuMIn)
+
+criteria <- data.frame(
+  Model = c("SARIMA_auto", "SARIMA_manual", "ETS", "STLM_ARIMA"),
+  AIC = c(AIC(auto_fit), AIC(manual_fit), ets_fit$aic, AIC(stlm_fit$model)),
+  AICc = c(AICc(auto_fit), AICc(manual_fit), ets_fit$aicc, AICc(stlm_fit$model)),
+  BIC = c(BIC(auto_fit), BIC(manual_fit), ets_fit$bic, BIC(stlm_fit$model))
+)
+
+criteria_num <- criteria
+criteria_num[, -1] <- round(criteria[, -1], 2)
+kable(criteria_num, caption = "Comparison of Information Criteria across Models") %>%
+  kable_styling(bootstrap_options = c("striped"), full_width = FALSE)
+```
+When the AIC, AICc and BIC criteria are compared between the models, it can be seen that the SARIMA_manual model has the lowest values for all metrics, indicating a better balance between fit and model complexity. The SARIMA_auto model performed similarly, but slightly less well. In contrast, the STLM_ARIMA and ETS models had significantly higher values, suggesting that they fit the data less efficiently, possibly due to greater complexity or an inability to capture the patterns in the series. Therefore, based on the information criteria, the SARIMA_manual model is the most suitable for this time series.
+
+#### Comparison of Model Forecast Accuracy on Test Set
+To evaluate the predictive ability of the various models, we examined the error metrics in the test set. The metrics considered were RMSE (root mean squared error), MAE (mean absolute error), MAPE (mean absolute percentage error) and Theil's U. These metrics provide different perspectives on the quality of the forecasts.
+
+The table below summarises these metrics for the four evaluated models: SARIMA with automatic parameter selection (SARIMA_auto); SARIMA with manual parameters (SARIMA_manual); the ETS model; and the hybrid STLM model with ARIMA in the residuals (STLM_ARIMA). The aim of this comparison is to identify the model with the best predictive performance and the lowest error in forecasting future values of the series.
+```{r}
+library(knitr)
+# install.packages("kableExtra")
+library(kableExtra)
+
+results <- rbind(
+  SARIMA_auto = accuracy(sarima_forecast, ts_test)[2, c("RMSE", "MAE", "MAPE", "Theil's U")],
+  SARIMA_manual = accuracy(sarima_manual_forecast, ts_test)[2, c("RMSE", "MAE", "MAPE", "Theil's U")],
+  ETS = accuracy(ets_forecast, ts_test)[2, c("RMSE", "MAE", "MAPE", "Theil's U")],
+  STLM_ARIMA = accuracy(stlm_forecast, ts_test)[2, c("RMSE", "MAE", "MAPE", "Theil's U")]
+)
+kable(round(results, 2), caption = "Forecast Accuracy Comparison on Test Set") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE)
+```
+
+When the models were compared based on the forecasting metrics in the test set, the SARIMA_auto model exhibited the best overall performance, showing the lowest RMSE, MAE, MAPE and Theil's U values. This indicates greater accuracy and better predictive capacity. SARIMA_manual performed reasonably well, albeit slightly less well than the automatic model. The ETS and STLM_ARIMA models, on the other hand, produced significantly higher error values, suggesting that they are less effective for forecasting this series. Therefore, the automatic SARIMA model is the most suitable choice for future forecasting.
+
+#### Visualising forecasts
+In addition to quantitative metrics, visually comparing the predictions with the actual data is fundamental to understanding how each model behaves over time. The graph below shows the actual values of the test set alongside the forecasts generated by each model.
+
+This visualisation enables us to identify any systematic deviations, as well as the models' ability to capture seasonality and trends, and any delays or one-off errors in the forecasts.
+
+```{r}
+autoplot(ts_test, series = "Actual") +
+  autolayer(sarima_forecast$mean, series = "SARIMA Auto", PI = FALSE) +
+  autolayer(sarima_manual_forecast$mean, series = "SARIMA Manual", PI = FALSE) +
+  autolayer(ets_forecast$mean, series = "ETS", PI = FALSE) +
+  autolayer(stlm_forecast$mean, series = "STLM+ARIMA", PI = FALSE) +
+  labs(title = "Model Forecasts vs Actual Data", y = "GWh", x = "Time") +
+  guides(colour = guide_legend(title = "Forecasts")) +
+  theme_minimal()
+
+```
+By comparing the model forecasts with the actual data, we conclude that SARIMA_auto and SARIMA_manual produced the most accurate predictions.
+
+#### Final conclusions and Discussion
+When analysing the information criteria (AIC, AICc and BIC) and forecast accuracy metrics (RMSE, MAE, MAPE and Theil's U) in the test set, the SARIMA_auto and SARIMA_manual models emerged as the most suitable for modelling the time series.
+
+SARIMA_manual produced the lowest information criterion values, indicating the best balance between model fit and complexity. However, SARIMA_auto obtained the lowest forecast errors in terms of predictive performance, suggesting greater capacity for generalisation and accuracy in future data.
+
+Conversely, the ETS and STLM_ARIMA models exhibited significantly higher values in both the information criteria and the error metrics, suggesting poorer model fit and forecasting performance.
+
+Therefore, the ideal choice depends on the objective: SARIMA_manual is more suitable for better historical adjustment, while SARIMA_auto is superior for future forecasting with lower error. Overall, SARIMA models are more appropriate for this data than ETS and STLM_ARIMA models. By comparing the models' forecasts with the actual data, we can conclude that SARIMA_auto and SARIMA_manual produced the most accurate predictions.
