@@ -19,12 +19,15 @@ The dataset will be split into a training set for model building and a test set 
 First, we load the necessary R libraries and the dataset. The data represents the monthly electricity available to the internal market in France, measured in Gigawatt-hours (GWh).
 
 ```{r}
-install.packages(c("forecast", "urca", "lmtest", "tseries", "ggplot2"))
+#install.packages(c("forecast", "urca", "lmtest", "tseries", "ggplot2", "MuMIn", "kableExtra"))
+library(MuMIn)
 library(forecast)
 library(urca)
 library(lmtest)
 library(tseries)
 library(ggplot2)
+library(kableExtra)
+
 
 # Load the data
 dados <- read.csv("data/data2.csv")
@@ -370,9 +373,6 @@ In addition to error metrics, information criteria such as AIC (Akaike Informati
 
 These criteria penalise overly complex models and help avoid overfitting. They are particularly useful for comparing models fitted to the same set of data.
 ```{r}
-# install.packages("MuMIn")
-library(MuMIn)
-
 criteria <- data.frame(
   Model = c("SARIMA_auto", "SARIMA_manual", "ETS", "STLM_ARIMA"),
   AIC = c(AIC(auto_fit), AIC(manual_fit), ets_fit$aic, AIC(stlm_fit$model)),
@@ -393,8 +393,6 @@ To evaluate the predictive ability of the various models, we examined the error 
 The table below summarises these metrics for the four evaluated models: SARIMA with automatic parameter selection (SARIMA_auto); SARIMA with manual parameters (SARIMA_manual); the ETS model; and the hybrid STLM model with ARIMA in the residuals (STLM_ARIMA). The aim of this comparison is to identify the model with the best predictive performance and the lowest error in forecasting future values of the series.
 ```{r}
 library(knitr)
-# install.packages("kableExtra")
-library(kableExtra)
 
 results <- rbind(
   SARIMA_auto = accuracy(sarima_forecast, ts_test)[2, c("RMSE", "MAE", "MAPE", "Theil's U")],
