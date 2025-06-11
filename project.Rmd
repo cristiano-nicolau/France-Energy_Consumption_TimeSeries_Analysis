@@ -387,7 +387,7 @@ ets_forecast <- forecast(ets_fit, h = length(ts_test))
 
 autoplot(ets_forecast, include = forecast_horizon) +
   autolayer(ts_test, series = "Actual Data") +
-  labs(title = "ETS Model Forecast vs. Actua",
+  labs(title = "ETS Model Forecast vs. Actual",
        x = "Year", y = "Consumption (GWh)") +
   guides(colour = guide_legend(title = "Series")) +
   theme_minimal()

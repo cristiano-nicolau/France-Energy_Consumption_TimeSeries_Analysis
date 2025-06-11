@@ -1,0 +1,74 @@
+\documentclass[conference]{IEEEtran}
+
+\usepackage{pythonhighlight}
+% \documentclass{article}
+\usepackage{array}
+\usepackage{graphicx}
+\usepackage{subcaption} 
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{float}
+\usepackage[english]{babel}
+\usepackage{listings} % code blocks
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage[acronym]{glossaries}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\makeglossaries
+%\usepackage{etoolbox} % citações
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot[C]{Page \thepage\ of \pageref{LastPage}}
+
+\hyphenation{}
+
+\begin{document}
+% paper title
+% can use linebreaks \\ within to get better formatting as desired
+\title{Analysis and Forecasting of Monthly Electricity Consumption in France}
+
+% author names and affiliations
+% use a multiple column layout for up to three different
+% affiliations
+\author{
+    \IEEEauthorblockN{Cristiano Nicolau}
+   \IEEEauthorblockA{
+        Séries Temporais 24/25\\
+        Departamento de Matemática\\
+        Universidade de Aveiro\\
+        Aveiro, Portugal\\
+        cristianonicolau@ua.pt
+    }
+    \and
+    \IEEEauthorblockN{Maria Abrunhosa}
+   \IEEEauthorblockA{
+        Séries Temporais 24/25\\
+        Departamento de Matemática\\
+        Universidade de Aveiro\\
+        Aveiro, Portugal\\
+        maria.abrunhosa@ua.pt
+    }
+}
+% make the title area
+\maketitle
+
+\input{0-abstract}
+\IEEEpeerreviewmaketitle
+\input{acronyms}
+\input{1-intro}
+\input{2-exploratory_analysis}
+\input{3-model_proposals}
+\input{4-forecast}
+\input{5-results}
+
+% printing acronyms
+\printglossary[type=\acronymtype,title=Acronyms]
+
+% references section
+\bibliography{refs}
+\bibliographystyle{IEEEtran}
+
+\input{7-appendix}
+\end{document}
